@@ -1,0 +1,153 @@
+<main class="app" id="decision-models">
+  <header>
+    <h1>Decision Models: Accuracy vs. Cost and Speed</h1>
+    <p class="sub">__MODEL_COUNT__ individual models, with direct-provider and OpenRouter routes measured separately on {NPUB} items of the public <a href="https://huggingface.co/datasets/Praveenrajus/jev-bench" style="color:var(--accent)">jev-bench</a>. Each labelled point is one model and API route. Solid lines connect related models within the same API route; dotted lines connect measurements of the same model across routes. Lines do not represent interpolation. <span class="updated">Updated {NOW} · <a href="/jev-benchmark/" style="color:var(--accent)">full report</a></span></p>
+  </header>
+  <section class="controls" aria-label="Decision model chart controls">
+    <div class="control"><label for="dmx">Horizontal axis</label><select id="dmx"><option value="cost">Benchmark cost / 1,000 calls</option><option value="priceIn">Official input price / 1M tokens</option><option value="priceOut">Official output price / 1M tokens</option><option value="priceCachedOfficial">Published cache-read price / 1M tokens</option><option value="apiCost">API-reported cost / 1,000 calls</option><option value="p50">Median latency (p50)</option></select></div>
+    <div class="control"><label for="dmy">Vertical axis</label><select id="dmy"><option value="acc">jev-bench accuracy</option><option value="noul">Yes/no accuracy (supported task)</option><option value="brier">jev-bench Brier score</option><option value="own">Accuracy on my own 60 items</option></select></div>
+    <div class="control"><label for="dmroute">API route</label><select id="dmroute"><option value="all">All measured routes</option><option value="direct">Direct provider</option><option value="OpenRouter">OpenRouter</option></select></div>
+    <div class="control"><label for="dmmodel">Model</label><select id="dmmodel"><option value="all">All models</option></select></div>
+    <label class="check"><input id="dmfamily" type="checkbox" checked> Connect model families</label>
+    <label class="check"><input id="dmpareto" type="checkbox"> Pareto frontier</label>
+    <label class="check"><input id="dmspread" type="checkbox"> Show latency p50–p95</label>
+  </section>
+  <p class="legend-note" style="padding:0 24px" id="dmstatus"></p>
+  <p class="legend-note" style="padding:0 24px" id="dmprice"></p>
+  <div class="layout">
+    <div class="chart-wrap">
+      <svg id="dmchart" viewBox="0 0 1080 650" role="img" aria-label="Interactive scatter plot of decision-model accuracy against cost per decision"></svg>
+      <div class="tooltip" id="dmtip"></div>
+    </div>
+
+  </div>
+  <p class="legend-note" style="padding:0 24px" id="dmrange"></p>
+  <p class="legend-note" style="padding:0 24px">All points are filled with their model colour. OR labels identify OpenRouter measurements; labels without OR use the provider. Solid coloured lines connect model families within one route; dotted coloured lines connect the same model across routes. The optional dark dashed line is the Pareto frontier. Span-01 and Span-01 Lite are explicitly excluded from this comparison. <a href="/jev-benchmark/">Full route statistics</a> · <a href="data.json" download>JSON</a> · <a href="statistics.csv" download>CSV</a></p>
+  <details class="sources">
+    <summary>Method and data</summary>
+    <p>Same 1,100 public questions (22 datasets × 50 test items, seed 7), one per request through the <code>jev</code> CLI. Accuracy is fractional top-option accuracy, Brier is the sum of squared errors over options. Failed, refused or unsupported answers score as uniform. Timings include process start, TLS, network and retries; successful calls only. Native decision probabilities, DIY token logprobs and Celeris generative self-reported probabilities are distinct methods. Statistical intervals in the report use 2,000 seeded bootstrap resamples. Partial runs stay out of this plot.</p>__PRICE_NOTE__
+  </details>
+</main>
+<script>
+(() => {
+  const allPts = __PTS__, pending = __PENDING__;
+  let pts = allPts;
+  const $ = id => document.getElementById(id), svg = $('dmchart'), tip = $('dmtip');
+  const W = 1080, H = 650, m = { l: 74, r: 36, t: 28, b: 62 };
+  const fmt = { cost: v => '$' + v.toFixed(4), apiCost: v => '$' + v.toFixed(4), priceIn: v => '$' + Number(v.toFixed(6)), priceOut: v => '$' + Number(v.toFixed(6)), priceCachedOfficial: v => '$' + Number(v.toFixed(6)), p50: v => Math.round(v) + ' ms', p95: v => Math.round(v) + ' ms', acc: v => (v * 100).toFixed(1) + '%', brier: v => v.toFixed(3), own: v => (v * 100).toFixed(1) + '%', noul: v => (v*100).toFixed(1)+'%' };
+  const names = { cost: 'Benchmark cost / 1,000 calls (USD, log scale including $0)', apiCost: 'API-reported cost / 1,000 calls (USD, log scale including $0)', priceIn: 'Official input price (USD / 1M tokens, log scale including $0)', priceOut: 'Official output price (USD / 1M tokens, log scale including $0)', priceCachedOfficial: 'Published cache-read price (USD / 1M tokens, log scale including $0)', p50: 'Median latency per call (ms)', p95: 'p95 latency per call (ms)', acc: 'Accuracy on jev-bench sample', brier: 'Brier score on jev-bench (lower is better, axis flipped)', own: 'Accuracy on my own 60 items', noul: 'Yes/no accuracy (350 identical public items)' };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  $('dmmodel').insertAdjacentHTML('beforeend',[...new Set(allPts.map(p=>p.identity))].map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join(''));
+  $('dmstatus').textContent = `${new Set(allPts.map(p=>p.identity)).size} models · ${allPts.length} complete route measurements. ` + (pending.length ? 'Pending/partial: '+pending.map(p=>`${p.name} (${p.route}, ${p.n}/1100)`).join('; ')+'. Incomplete runs are excluded from the plot.' : '');
+  function nice(lo, hi, n) { const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0))), r = step0 / mag, step = (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * mag; const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10)); return out; }
+  function render() {
+    const xm = $('dmx').value, ym = $('dmy').value;
+    const route=$('dmroute').value;
+    pts=allPts.filter(p=>(route==='all'||p.route===route)&&($('dmmodel').value==='all'||p.identity===$('dmmodel').value)&&Number.isFinite(p[xm])&&Number.isFinite(p[ym]));
+    const selected=allPts.filter(p=>(route==='all'||p.route===route)&&($('dmmodel').value==='all'||p.identity===$('dmmodel').value));
+    const missing=selected.filter(p=>!Number.isFinite(p[xm]));
+    const explanations={
+      cost:'Benchmark estimate: mean recorded call cost × 1,000. Per call: ((input − cached) × input price + cached × cache price + output × output price) / 1,000,000. Only calls with reported usage are included; token prices are specific to each API route. Credits, tax and payment fees are excluded.',
+      apiCost:'Mean cost returned by the API for calls with reported billing × 1,000. Only routes reporting a cost are shown. These figures cover recorded calls, not the complete account invoice.',
+      priceIn:'Official input list price in USD per 1 million tokens, specific to each API route; checked 2026-10-15. Independent of benchmark request length. This axis covers input only; output and cache prices are separate.',
+      priceOut:'Official output list price in USD per 1 million tokens, specific to each API route; checked 2026-10-15. A $0 output price does not make input tokens free.',
+      priceCachedOfficial:'Published cache-read price in USD per 1 million input tokens, checked 2026-10-15. An unpublished cache price is unknown and is excluded from this axis; the benchmark estimate uses the normal input price for those routes.',
+      p50:'Median end-to-end latency of successful benchmark calls, including process startup, TLS, network and retries.'
+    };
+    $('dmprice').textContent=explanations[xm]+(missing.length?' Missing '+(xm==='apiCost'?'API billing':'published price')+': '+missing.length+' selected routes omitted.':'');
+    $('dmspread').disabled=xm!=='p50';
+    tip.classList.remove('show');
+    if(!pts.length){$('dmrange').textContent='';svg.innerHTML='<text x="80" y="80" fill="currentColor">No measurements available for the selected axis and filters.</text>';return;}
+    const log=v=>Math.log10(1+v/.001);
+    const logx = ['cost','apiCost','priceIn','priceOut','priceCachedOfficial'].includes(xm), flipy = ym === 'brier';
+    const xs = pts.map(p => p[xm]), ys = pts.map(p => p[ym]);
+    const lat = xm === 'p50';
+    const longTail=p=>p.p95>5*p.p50;
+    const ranges=lat&&$('dmspread').checked;
+    $('dmspread').disabled=!lat;
+    const rangePts=ranges?pts.filter(p=>!longTail(p)):[];
+    let xlo = Math.min(...xs, ...[]), xhi = Math.max(...xs, ...rangePts.map(p=>p.p95)), ylo = Math.min(...ys), yhi = Math.max(...ys);
+    const px = (xhi - xlo) * .12 || 1, py = (yhi - ylo) * .14 || .05;
+    if (logx) { xlo = Math.max(0,log(xlo) - .12); xhi = log(xhi) + .12; } else { xlo = Math.max(0, xlo - px); xhi += px; }
+    ylo -= py; yhi += py;
+    const X = v => m.l + ((logx ? log(v) : v) - xlo) / (xhi - xlo) * (W - m.l - m.r);
+    const Y = v => { const t = (v - ylo) / (yhi - ylo); return (flipy ? m.t + t : H - m.b - t * (H - m.t - m.b)) + (flipy ? 0 : 0) ; };
+    const Yp = v => flipy ? m.t + (v - ylo) / (yhi - ylo) * (H - m.t - m.b) : H - m.b - (v - ylo) / (yhi - ylo) * (H - m.t - m.b);
+    let g = `<defs><linearGradient id="dmz" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#2caa72" stop-opacity="0"/><stop offset="1" stop-color="#2caa72" stop-opacity=".16"/></linearGradient></defs>`;
+    g += `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="url(#dmz)" transform="${flipy ? '' : ''}"/>`;
+    const xticks = logx ? [0,.001,.002,.005,.01,.02,.05,.1,.2,.5,1,2,5,10].filter(v => log(v) >= xlo && log(v) < xhi) : nice(xlo, xhi, 6);
+    const yticks = nice(ylo, yhi, 6);
+    xticks.forEach(v => { g += `<line class="grid" x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}"/><text class="tick" x="${X(v)}" y="${H - m.b + 18}" text-anchor="middle">${logx ? '$' + v : Math.round(v)}</text>`; });
+    yticks.forEach(v => { g += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${Yp(v)}" y2="${Yp(v)}"/><text class="tick" x="${m.l - 8}" y="${Yp(v) + 4}" text-anchor="end">${ym === 'brier' ? v.toFixed(2) : Math.round(v * 100) + '%'}</text>`; });
+    g += `<line class="axis" x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}"/><line class="axis" x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${H - m.b}"/>`;
+    g += `<text class="axis-label" x="${(m.l + W - m.r) / 2}" y="${H - 14}" text-anchor="middle">${names[xm]}</text><text class="axis-label" transform="translate(18 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">${names[ym]}</text>`;
+    g += `<text class="zone-label" x="${m.l + 10}" y="${flipy ? m.t + 16 : m.t + 16}">BETTER</text>`;
+    const good = p => flipy ? -p[ym] : p[ym];
+    if ($('dmpareto').checked) {
+      const sorted = [...pts].sort((a, b) => (a[xm] - b[xm]) || (good(b)-good(a))); let best = -Infinity; const fr = [];
+      sorted.forEach(p => { if (good(p) > best) { best = good(p); fr.push(p); } });
+      if (fr.length > 1) g += `<polyline class="pareto-line" style="stroke:var(--ink,#18212f);stroke-width:2.5;stroke-dasharray:8 6;fill:none" points="${fr.map(p => X(p[xm]) + ',' + Yp(p[ym])).join(' ')}"/>`;
+    }
+    const family = p => {
+      for (const prefix of ['Jev','Clef','Celeris','Drex','Solar','Span']) if(p.identity.startsWith(prefix)) return prefix;
+      return p.identity;
+    };
+    if($('dmfamily').checked){
+      const groups=new Map();
+      pts.forEach(p=>{const key=family(p)+'|'+p.route; if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);});
+      groups.forEach(group=>{
+        if(group.length<2)return;
+        group.sort((a,b)=>a[xm]-b[xm]);
+        g+=`<polyline class="family-line" points="${group.map(p=>X(p[xm])+','+Yp(p[ym])).join(' ')}" fill="none" stroke="${group[0].color}" stroke-width="1.6" stroke-opacity=".6" style="stroke-dasharray:none"/>`;
+      });
+      const counterparts=new Map();
+      pts.forEach(p=>{if(!counterparts.has(p.identity))counterparts.set(p.identity,[]);counterparts.get(p.identity).push(p);});
+      counterparts.forEach(group=>{
+        if(new Set(group.map(p=>p.route)).size<2)return;
+        group.sort((a,b)=>a[xm]-b[xm]);
+        g+=`<polyline class="route-line" points="${group.map(p=>X(p[xm])+','+Yp(p[ym])).join(' ')}" fill="none" stroke="${group[0].color}" stroke-width="2" stroke-opacity=".8" stroke-dasharray="2 5" stroke-linecap="round"/>`;
+      });
+    }
+    if(ranges)rangePts.forEach(p=>{
+      const y=Yp(p[ym]),a=X(p.p50),b=X(p.p95);
+      g+=`<line class="latency-range" x1="${a}" x2="${b}" y1="${y}" y2="${y}" stroke="${p.color}" stroke-width="1.2" opacity=".4"/><line x1="${b}" x2="${b}" y1="${y-4}" y2="${y+4}" stroke="${p.color}" opacity=".4"/>`;
+    });
+    const omitted=lat?pts.filter(longTail):[];
+    $('dmrange').textContent=(ranges?'Horizontal ranges show p50–p95 latency. ':'')+(omitted.length?'Long p95 values ('+omitted.map(p=>p.name+': '+fmt.p95(p.p95)).join('; ')+') are omitted from plotted ranges and axis scaling; the full values remain in tooltips and the report.':'');
+    // Place labels near their measured coordinates; leader lines show displaced labels.
+    const positioned=pts.map(p=>({...p,cx:X(p[xm]),cy:Yp(p[ym]),label:p.name+(p.route==='OpenRouter'?' · OR':'')}));
+    const occupied=[];
+    const overlap=(a,b)=>Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y));
+    positioned.sort((a,b)=>a.cy-b.cy||a.cx-b.cx).forEach(p=>{
+      const width=p.label.length*6.8+4;let best=null;
+      for(const dx of [11,-11,35,-35,75,-75,130,-130,200,-200])for(const dy of [0,-18,18,-36,36,-54,54,-78,78,-108,108,-140,140,-175,175]){
+        const left=dx>0?p.cx+dx:p.cx+dx-width,top=p.cy+dy-11;
+        if(left<m.l+2||left+width>W-m.r-2||top<m.t+2||top+16>H-m.b-2)continue;
+        const box={x:left,y:top,w:width,h:16};
+        const collision=occupied.reduce((n,b)=>n+overlap(box,b),0);
+        const covers=positioned.filter(q=>q.cx>left-5&&q.cx<left+width+5&&q.cy>top-4&&q.cy<top+20).length;
+        const score=collision*1000+covers*10000+Math.abs(dx)+Math.abs(dy)*1.2;
+        if(!best||score<best.score)best={...box,score};
+      }
+      best ||= {x:Math.min(W-m.r-width-2,p.cx+11),y:Math.max(m.t+2,p.cy-11),w:width,h:16};
+      occupied.push(best);
+      const tx=best.x,ty=best.y+12,ex=Math.max(tx,Math.min(tx+width,p.cx)),ey=Math.max(best.y,Math.min(best.y+16,p.cy));
+      if(Math.hypot(ex-p.cx,ey-p.cy)>17)g+=`<line class="label-leader" x1="${p.cx}" y1="${p.cy}" x2="${ex}" y2="${ey}" stroke="${p.color}" stroke-opacity=".35" stroke-width=".8"/>`;
+      g+=`<text class="point-label" x="${tx}" y="${ty}" fill="${p.color}" style="font-size:13px;paint-order:stroke;stroke:var(--panel,#fff);stroke-width:3;stroke-linejoin:round">${esc(p.label)}</text>`;
+    });
+    positioned.forEach(p=>{
+      g+=`<circle class="point" tabindex="0" data-id="${esc(p.id)}" cx="${p.cx}" cy="${p.cy}" r="5.5" fill="${p.color}" stroke="var(--panel,#fff)" stroke-width="1.5" aria-label="${esc(p.name+' via '+p.route)}"/>`;
+    });
+    svg.innerHTML = g;
+    svg.querySelectorAll('.point').forEach(el => {
+      const p = pts.find(q => q.id === el.dataset.id);
+      const show = ev => { const box = svg.parentElement.getBoundingClientRect(), r = el.getBoundingClientRect();
+        tip.innerHTML = `<div class="tt-title" style="color:${p.color}">${esc(p.name)}</div><div class="tt-sub">${esc(p.sub)}</div><div class="tt-grid"><span>Accuracy</span><span>${fmt.acc(p.acc)}</span><span>Brier</span><span>${fmt.brier(p.brier)}</span><span>Median / p95</span><span>${fmt.p50(p.p50)} / ${fmt.p95(p.p95)}</span><span>Benchmark cost / 1,000 calls³</span><span>${fmt.cost(p.cost)}</span><span>Calls with known usage</span><span>${p.usageN} / ${p.n}</span><span>Mean input / cached / output tokens</span><span>${Math.round(p.inputTokens)} / ${Math.round(p.cachedTokens)} / ${Math.round(p.outputTokens)}</span><span>API route</span><span>${esc(p.route)}</span><span>Reported upstream</span><span>${esc((p.upstreams||[]).join(', ')||'direct')}</span><span>API cost / 1,000</span><span>${p.apiCost==null?'not reported':fmt.cost(p.apiCost)}</span><span>Official input / output prices</span><span>${fmt.priceIn(p.priceIn)} / ${fmt.priceOut(p.priceOut)} per 1M tokens</span><span>Published cache-read price</span><span>${p.priceCachedOfficial==null?'not published':fmt.priceCachedOfficial(p.priceCachedOfficial)+' per 1M tokens'}</span><span>Prices checked</span><span>${esc(p.priceChecked)}</span><span>Errors or refusals / unsupported</span><span>${p.fail} / ${p.unsupported} of ${p.n}</span><span>Yes/no accuracy</span><span>${fmt.acc(p.noul)} (n=${p.noulN})</span><span>My own 60 items</span><span>${fmt.own(p.own)}</span></div>`;
+        tip.classList.add('show'); const left = Math.min(Math.max(r.left - box.left + r.width / 2 + 14, 8), box.width - 262); tip.style.left = left + 'px'; tip.style.top = Math.max(r.top - box.top - 10, 4) + 'px'; };
+      el.addEventListener('mouseenter', show); el.addEventListener('focus', show); el.addEventListener('mouseleave', () => tip.classList.remove('show')); el.addEventListener('blur', () => tip.classList.remove('show'));
+    });
+  }
+  ['dmx', 'dmy', 'dmpareto', 'dmspread','dmroute','dmmodel','dmfamily'].forEach(id => $(id).addEventListener('change', render));
+  render();
+})();
+</script>

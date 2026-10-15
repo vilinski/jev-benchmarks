@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+run-*.log
+jev-bench-data/
+site/
+results/*.log
+results/*.lock
+results/*.tmp
+# Local session handoff notes
+RESUME.md

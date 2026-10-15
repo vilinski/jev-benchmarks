@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-14T23:47:08.175630+00:00",
+  "cli_version": "jev 0.3.0",
+  "cli_binary_sha256": "2ee8b662e11c79b1f8c0aa01f5be6637c0a8b4e0cf2f5cc66b01a32b36656f2a",
+  "source_files": {
+    "src/telemetry.rs": "ab4214270af5eaa6e27a5137f888c79cb778353be664ead72e897e291fb9208a",
+    "src/key.rs": "7299cfed5a1cbbfeac759b163bd43ce43b09f65f2892c06c123b5bbe42f6858f",
+    "src/util.rs": "5c8805ba48922ebfca3315ff12efa111b301c735051e335c6ad35e9614d083b8",
+    "src/decisions.rs": "9991ba8ef07cd8705d31a208ac4f68b0cf2f5026c7f803c7acb5832c51990541",
+    "src/provider.rs": "718ebca8a1358b50750ebf0a70de516665e86d7a1eb524dc78b1aa9354cebbd1",
+    "src/main.rs": "f8ee3685bc2912a8b54e90cfefec1f7c92011d6c038cc66b4f8a83c56a5d44b6",
+    "src/structured.rs": "4f63ccfa15843e74d5087acaf183a05561c3e9819037713b86e332802cab31d5",
+    "src/api.rs": "e4cd42083a11f645113a3c11e3af7ffebc9b994be5402fd53032330384a1012d",
+    "src/openai.rs": "71c63520f456532728573bf501576752baf230b81545554964b8b045da38f497"
+  }
+}

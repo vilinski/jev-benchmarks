@@ -1,0 +1,42 @@
+[
+  {
+    "model": {
+      "key": "Span-01 \u00b7 OpenRouter",
+      "label": "Span-01",
+      "sub": "openrouter \u00b7 respan/span-01 \u00b7 native decision API",
+      "color": "#c65369",
+      "provider": "openrouter",
+      "stem": "v2_respan_span_01",
+      "price_in": 0.02,
+      "price_out": 0.0,
+      "price_cached": 0.02,
+      "model": "respan/span-01",
+      "source": "https://openrouter.ai/respan/span-01",
+      "adapter": "native decision API",
+      "identity": "Span-01",
+      "route": "OpenRouter"
+    },
+    "reason": "Explicitly excluded by the owner after review: inadequate quality for this comparison; original raw measurements retained.",
+    "excluded_at": "2026-10-15T00:11:55.637064+00:00"
+  },
+  {
+    "model": {
+      "key": "Span-01 Lite \u00b7 OpenRouter",
+      "label": "Span-01 Lite",
+      "sub": "openrouter \u00b7 respan/span-01-lite \u00b7 native decision API",
+      "color": "#aa4b38",
+      "provider": "openrouter",
+      "stem": "v2_respan_span_01_lite",
+      "price_in": 0.0,
+      "price_out": 0.0,
+      "price_cached": 0.0,
+      "model": "respan/span-01-lite",
+      "source": "https://openrouter.ai/respan/span-01-lite",
+      "adapter": "native decision API",
+      "identity": "Span-01 Lite",
+      "route": "OpenRouter"
+    },
+    "reason": "Explicitly excluded by the owner after review: inadequate quality for this comparison; original raw measurements retained.",
+    "excluded_at": "2026-10-15T00:11:55.637256+00:00"
+  }
+]

@@ -1,0 +1,23 @@
+# Registry-driven benchmarks. Every live run costs money and resumes checkpoints.
+[tools]
+python = "3.14"
+[env]
+JEVBENCH_PER = "50"
+[tasks."bench:fetch"]
+run = "python3 fetch_jevbench.py"
+[tasks."bench:run"]
+depends = ["bench:fetch"]
+description = "Resume every model/route; uses jev credentials and explicit model IDs"
+run = "python3 run_variants.py --all --workers 24"
+[tasks."bench:cloudflare"]
+description = "Resume all three direct Cloudflare models after the daily quota reset"
+run = "python3 run_variants.py clef clef-flash clef-omni --refresh-smoke --workers 3"
+[tasks."bench:report"]
+run = "python3 report.py"
+[tasks."bench:site"]
+depends = ["bench:report"]
+run = 'python3 site.py "${CODING_PAGE:-$HOME/Projects/vilinski-hetzner/nginx/www/ai.vilinski.dev/coding-agents/index.html}"'
+[tasks.bench]
+depends = ["bench:run"]
+depends_post = ["bench:site"]
+run = "echo 'Generated site in site; publish only after review'"
